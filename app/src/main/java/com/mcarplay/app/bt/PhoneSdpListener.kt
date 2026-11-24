@@ -60,6 +60,24 @@ internal class PhoneSdpListener<T : Closeable>(
         return openIfNeeded()
     }
 
+    /**
+     * 配对状态变化后强制重发布：关闭当前两项公告再重新注册。
+     *
+     * 部分车机在配对瞬间抓取手机的 SDP 服务表并缓存；若那一刻公告尚未就绪，
+     * 之后即便车机在设备列表里点选手机也不会发起 iAP2 回连。重新注册能让
+     * 系统刷新 EIR/SDP，车机下次查询才有机会看到 …cafe。
+     *
+     * 重发布不消耗也不返还失败恢复额度（它由配对事件触发，与失败恢复无关）；
+     * generation 递增使旧监听的迟到失败不能撤销新一轮公告。
+     */
+    @Synchronized
+    fun republish(): Boolean {
+        if (!requested) return false
+        generation++
+        closeRecords()
+        return openIfNeeded()
+    }
+
     @Synchronized
     fun stop() {
         requested = false

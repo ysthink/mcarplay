@@ -104,6 +104,28 @@ class Iap2BluetoothServer(
         }
     }
 
+    /**
+     * 目标车机配对状态变为 BONDED 后重发布 iAP2/CarPlay 公告。
+     *
+     * 车机常在配对瞬间缓存手机 SDP 表；若当时公告未就绪，之后点选手机也不会回连。
+     * 只在本轮仍在监听时生效，失败走与监听一致的一次性恢复，不额外重试轰炸蓝牙。
+     */
+    internal fun republishAfterBond() {
+        if (!listener.isRunning) return
+        log("BT: 目标车机已配对——重发 iAP2/CarPlay 公告，请稍后在车机蓝牙/CarPlay 列表点选本机")
+        val ok =
+            try {
+                listener.republish()
+            } catch (error: IOException) {
+                log("BT: 配对后重发公告失败 - ${BluetoothFailure.describe(error)}")
+                false
+            } catch (error: SecurityException) {
+                log("BT: 配对后重发公告需要蓝牙权限 - ${BluetoothFailure.describe(error)}")
+                false
+            }
+        if (!ok) listener.recoveryToken()?.let(::recoverListener)
+    }
+
     @SuppressLint("MissingPermission")
     private fun openRecords(): PhoneSdpRecords<BluetoothServerSocket> {
         if (!hasPermission()) throw SecurityException("BLUETOOTH_CONNECT not granted")

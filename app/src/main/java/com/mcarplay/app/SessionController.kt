@@ -1065,6 +1065,10 @@ object SessionController {
                     targetProvider = targetProvider,
                     diagnostics = bluetoothDiagnostics,
                     onAdapterStateChanged = { state -> bluetoothServer?.onAdapterStateChanged(state) },
+                    onTargetBonded = { address ->
+                        appendLog("BT: 目标车机配对完成（$address）——重发手机 SDP 公告，避免车机缓存到空服务表")
+                        bluetoothServer?.republishAfterBond()
+                    },
                     onAwaitingReceiverTap = { name ->
                         // 艾瑞泽 8 这类车机只能由车机端发起，需要用户在车机上操作（2026-11-02）
                         phaseHint = t(R.string.sc_tap_phone_on_receiver, name)

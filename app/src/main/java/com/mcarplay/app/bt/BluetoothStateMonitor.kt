@@ -18,6 +18,8 @@ internal class BluetoothStateMonitor(
     private val epoch: Long,
     private val targetProvider: () -> TargetDevicePrefs.Target?,
     private val onAdapterStateChanged: (Int) -> Unit = {},
+    /** 目标车机配对完成（BOND_BONDED）时触发，供手机侧重发 SDP 公告。 */
+    private val onTargetBonded: (String) -> Unit = {},
     private val isCurrent: () -> Boolean,
 ) {
     private var registered = false
@@ -48,14 +50,18 @@ internal class BluetoothStateMonitor(
                         else -> BluetoothDiagnostics.PeerMatch.OTHER
                     }
                 when (intent.action) {
-                    BluetoothDevice.ACTION_BOND_STATE_CHANGED ->
-                        diagnostics.bondChanged(
-                            epoch,
-                            address,
-                            match,
-                            intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1),
-                            intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1),
-                        )
+                    BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
+                        val previous = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1)
+                        val state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)
+                        diagnostics.bondChanged(epoch, address, match, previous, state)
+                        // 仅目标设备、且确实刚进入 BONDED（避免 BONDING→BONDED 之外的重复广播）时重发公告。
+                        if (state == BluetoothDevice.BOND_BONDED &&
+                            previous != BluetoothDevice.BOND_BONDED &&
+                            match == BluetoothDiagnostics.PeerMatch.TARGET
+                        ) {
+                            onTargetBonded(address)
+                        }
+                    }
                     BluetoothDevice.ACTION_ACL_CONNECTED -> diagnostics.acl(epoch, address, match, connected = true)
                     BluetoothDevice.ACTION_ACL_DISCONNECTED -> diagnostics.acl(epoch, address, match, connected = false)
                 }

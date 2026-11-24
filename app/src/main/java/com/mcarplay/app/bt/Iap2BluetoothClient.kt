@@ -57,6 +57,8 @@ class Iap2BluetoothClient(
     private val diagnostics: BluetoothDiagnostics = BluetoothDiagnostics({}),
     /** 将系统蓝牙开关变化交给手机 SDP 监听，以恢复本轮仍需发布的服务。 */
     private val onAdapterStateChanged: (Int) -> Unit = {},
+    /** 目标车机配对完成时通知主控重发 SDP 公告（配对瞬间缓存空服务表的车机需要）。 */
+    private val onTargetBonded: (String) -> Unit = {},
     /** 车机拒绝主动连入、改为等它回连时调用一次（参数为设备名），界面据此提示「在车机上点本机」。 */
     private val onAwaitingReceiverTap: (String) -> Unit = {},
 ) {
@@ -436,6 +438,7 @@ class Iap2BluetoothClient(
                     diagnosticEpoch,
                     targetProvider,
                     onAdapterStateChanged = onAdapterStateChanged,
+                    onTargetBonded = onTargetBonded,
                 ) {
                     running && generation.get() == myGeneration
                 }.also { it.start() },

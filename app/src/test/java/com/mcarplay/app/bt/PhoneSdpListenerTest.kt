@@ -72,6 +72,33 @@ class PhoneSdpListenerTest {
     }
 
     @Test
+    fun republishReplacesBothRecordsAndKeepsRunning() {
+        listener.start()
+        val old = opened.single()
+        assertTrue(listener.republish())
+        assertEquals(2, opened.size)
+        assertEquals(1, old.iap2.closes)
+        assertEquals(1, old.carPlay.closes)
+        assertEquals(1, closed)
+        assertTrue(listener.isRunning)
+        assertTrue(listener.isCurrent(opened.last()))
+        assertNull(listener.recoveryToken())
+        // 旧实例的迟到失败不能撤销重发布后的公告。
+        assertNull(listener.failed(old))
+        assertTrue(listener.isCurrent(opened.last()))
+        assertEquals(0, opened.last().iap2.closes)
+    }
+
+    @Test
+    fun republishAfterStopDoesNotReopenServices() {
+        listener.start()
+        listener.stop()
+        assertFalse(listener.republish())
+        assertEquals(1, opened.size)
+        assertFalse(listener.isRunning)
+    }
+
+    @Test
     fun adapterOffInvalidatesPendingRecoveryAndAllowsAFreshOnEvent() {
         listener.start()
         val pending = listener.failed(opened.single())!!
