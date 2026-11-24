@@ -1073,6 +1073,10 @@ object SessionController {
                         // 艾瑞泽 8 这类车机只能由车机端发起，需要用户在车机上操作（2026-11-02）
                         phaseHint = t(R.string.sc_tap_phone_on_receiver, name)
                         uiHintSink?.invoke(t(R.string.sc_tap_phone_on_receiver_hint, name))
+                        // 这类车机在 app 启动前早就 BONDED，配对广播永不到达；转入等待点选时
+                        // 再刷新一次公告，给车机点选时的 SDP 查询一个看到 …cafe 的机会（2026-11-24）。
+                        appendLog("BT: 车机拒绝主动连入——等待点选期间重发手机 SDP 公告")
+                        bluetoothServer?.republishAfterBond("等待车机点选")
                     },
                 )
             ctrlAdvertiser =

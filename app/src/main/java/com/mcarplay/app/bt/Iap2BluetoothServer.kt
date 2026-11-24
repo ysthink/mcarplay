@@ -105,22 +105,32 @@ class Iap2BluetoothServer(
     }
 
     /**
-     * 目标车机配对状态变为 BONDED 后重发布 iAP2/CarPlay 公告。
+     * 重发布 iAP2/CarPlay 公告，刷新系统 EIR/SDP 与车机可能缓存的服务表。
      *
-     * 车机常在配对瞬间缓存手机 SDP 表；若当时公告未就绪，之后点选手机也不会回连。
+     * 两个触发时机：
+     * 1. 目标车机配对状态变为 BONDED（配对瞬间抓空服务表的车机）；
+     * 2. 车机拒绝手机主动连入、转入「等车机点选」时。艾瑞泽 8 雅这类车机在
+     *    app 启动前就早已 BONDED，时机 1 的广播永远不会到达，因此必须在每轮
+     *    进入等待时再刷新一次，否则重发对该车完全无效。
+     *
      * 只在本轮仍在监听时生效，失败走与监听一致的一次性恢复，不额外重试轰炸蓝牙。
      */
-    internal fun republishAfterBond() {
+    internal fun republishAfterBond(trigger: String = "目标车机已配对") {
         if (!listener.isRunning) return
-        log("BT: 目标车机已配对——重发 iAP2/CarPlay 公告，请稍后在车机蓝牙/CarPlay 列表点选本机")
+        // 车机正在回连时重发会关闭监听 socket，切断刚建立的链路；入站会话期间跳过。
+        if (BtSessionGate.inboundActive) {
+            log("BT: $trigger——入站会话进行中，跳过重发以免切断车机回连")
+            return
+        }
+        log("BT: $trigger——重发 iAP2/CarPlay 公告，请稍后在车机蓝牙/CarPlay 列表点选本机")
         val ok =
             try {
                 listener.republish()
             } catch (error: IOException) {
-                log("BT: 配对后重发公告失败 - ${BluetoothFailure.describe(error)}")
+                log("BT: 重发公告失败 - ${BluetoothFailure.describe(error)}")
                 false
             } catch (error: SecurityException) {
-                log("BT: 配对后重发公告需要蓝牙权限 - ${BluetoothFailure.describe(error)}")
+                log("BT: 重发公告需要蓝牙权限 - ${BluetoothFailure.describe(error)}")
                 false
             }
         if (!ok) listener.recoveryToken()?.let(::recoverListener)
